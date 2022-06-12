@@ -8,13 +8,14 @@ import argparse
 
 import config
 import data
-import logs
+import logs.logs as logs
 import model
 import optimizers
 import criterion
 from test import test
 from train import train
 import transforms
+import torch.optim.lr_scheduler as lr_scheduler
 
 
 #   BUILD MODEL FROM CONFIG
@@ -30,6 +31,11 @@ net = make_net()
 optimizer = make_optm(net.parameters(), cfg.learning_rate)
 loss_fn = make_loss_fn()
 transform = make_transform()
+scheduler = lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, 
+                                                mode="min", 
+                                                factor=0.1, 
+                                                patience=80,
+                                                )
 
 
 #   DATA SETUP
@@ -55,7 +61,6 @@ if torch.cuda.device_count() > 1:
 net.to(device)
 
 print(logs.log_header(cfg, log_file))
-writer = SummaryWriter(cfg.writer_file, comment=cfg.dump())
 
 #    CURRICULUM LOOP
 snr_lvls = range(30, -20, -2)
@@ -67,14 +72,15 @@ for lesson, min_snr in enumerate(snr_lvls):
     lesson_eval_accu = []
     lesson_eval_losses = []
     
+    writer = SummaryWriter(cfg.writer_file+f'-lesson-{lesson}', comment=cfg.dump())
 
     if lesson >=1:
         net.load_state_dict(torch.load(f'{chkpt_dir}best_model-minSNR{min_snr+2}_maxSNR30.pt'))
 
     print(f"Filtering data to minSNR:{min_snr} to maxSNR:{cfg.max_snr}.")
-    trainset.filter_SNR(min_snr=min_snr, max_snr=cfg.max_snr)
+    trainset.filter_SNR(trainset, min_snr=min_snr, max_snr=cfg.max_snr)
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=cfg.batch_size, shuffle=(not cfg.micro), num_workers=0)
-    testset.filter_SNR(min_snr=min_snr, max_snr=cfg.max_snr)
+    testset.filter_SNR(testset, min_snr=min_snr, max_snr=cfg.max_snr)
     testloader = torch.utils.data.DataLoader(testset, batch_size=cfg.batch_size, shuffle=False, num_workers=0)
     
     #    TRAINING/EVAL LOOP
@@ -108,11 +114,14 @@ for lesson, min_snr in enumerate(snr_lvls):
         
         #   LOGGER AND TENSORBOARD
         max_accu  = max(lesson_eval_accu)
-        logs.log_results(cfg, train_losses, train_accu, 
-                            eval_losses, eval_accu, 
-                            epoch, writer, log_file,
-                            lesson, min_snr, max_accu,
-                            best_epoch, epoch_since_best)
+        logs.log_results(cfg, optimizer, train_losses, 
+                            train_accu, eval_losses, 
+                            eval_accu, epoch, writer, 
+                            log_file, lesson, min_snr, 
+                            max_accu, best_epoch, 
+                            epoch_since_best)
+        scheduler.step(eval_losses)
+
     
     #   END TRAINING/EVAL LOOP
 

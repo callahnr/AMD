@@ -3,14 +3,14 @@ from datetime import datetime
 
 def get_time():
     now = datetime.now()
-    dt_string = now.strftime("%d-%m-%Y_%H:%M:%S")
+    dt_string = now.strftime("%d-%m-%Y__%H-%M-%S")
     return dt_string
 
 def default_cfg():
     cfg = CN()
 
     cfg.micro = False
-    cfg.batch_size = 2400
+    cfg.batch_size = 500
     cfg.epochs = 2000
     cfg.early_stop = 250
 
@@ -35,5 +35,8 @@ def default_cfg():
                     "     (...snr - 30snr)  -> "
                     "     (-20snr - 30snr)  \n " 
                     f"-----------{get_time()}----------\n")
+
+    # cfg.lr_scheduler.factor = 0.1
+    # cfg.lr_scheduler.patience = 80
 
     return cfg

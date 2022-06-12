@@ -1,3 +1,4 @@
+from sched import scheduler
 from tqdm import tqdm
 
 def train(trainloader, optimizer, criterion, model, device, micro=False):
@@ -11,14 +12,15 @@ def train(trainloader, optimizer, criterion, model, device, micro=False):
     total=0
     steps = 0
 
+
+    
     for inputs, labels in tqdm(trainloader):
 
         inputs, labels = inputs.to(device), labels.to(device)
 
         optimizer.zero_grad()
         outputs = model(inputs)
-        # labels = labels @ torch.arange(len(classes))
-        # labels = labels.unsqueeze(1)
+
         loss = criterion(outputs,labels)
         loss.backward()
         optimizer.step()
